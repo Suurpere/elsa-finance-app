@@ -162,6 +162,3 @@ def analyysi():
                             st.info("Valitud kategoorias pole andmeid.")
     else:
         st.info("Palun vali CSV-fail analüüsiks.")
-
-
-analyysi()
