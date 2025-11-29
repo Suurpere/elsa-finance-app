@@ -10,7 +10,6 @@ from analyysimine import *
 st.set_page_config(page_title="Kulutuste analüüs ELSA", layout="wide")
 
 # --- UI: pealkiri ja menüü ---
-
 st.title("💸 ELSA – Kulude ja sissetulekute jälgimine")
 
 st.sidebar.header("Menüü")
@@ -32,6 +31,5 @@ elif mode == "Kulu / sissetuleku sisestamine":
     sisesta()
 
 # --- Analüüs / graafikud (Analüüsida kulutusi) ---
-
 elif mode == "Analüüs ja graafikud":
     analyysi()
