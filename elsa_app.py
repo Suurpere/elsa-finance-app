@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
-from konstandid import ALL_COLUMNS
+from konstandid import *
 
 # --- Üldine seadistus ---
 st.set_page_config(page_title="Kulutuste analüüs ELSA", layout="wide")
