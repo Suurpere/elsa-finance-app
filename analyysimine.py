@@ -61,9 +61,7 @@ def analyysi():
                     # Kuupäevavahemik
                     if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
                         start_date, end_date = date_range
-                        mask = (
-                                       df["Kuupäev"].dt.date >= start_date
-                               ) & (df["Kuupäev"].dt.date <= end_date)
+                        mask = (df["Kuupäev"].dt.date >= start_date) & (df["Kuupäev"].dt.date <= end_date)
                         df = df[mask]
 
                     if df.empty:

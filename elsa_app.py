@@ -1,8 +1,4 @@
-import matplotlib.pyplot as plt
-from konstandid import *
-from abifunktsioonid import *
-from selgitamine import *
-from lugemine import *
+
 from sisestamine import *
 from analyysimine import *
 

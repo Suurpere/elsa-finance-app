@@ -53,7 +53,7 @@ def sisesta():
 
             new_row = {
                 "Timestamp": timestamp,
-                "Kuup2ev": kuupäev_sisse.strftime("%Y-%m-%d"),
+                "Kuupäev": kuupäev_sisse.strftime("%Y-%m-%d"),
                 "Summa": summa_val,
                 "Tulu/kulu": "Tulu",
                 "Kategooria": kategooria_sisse,}
@@ -94,7 +94,7 @@ def sisesta():
 
                 new_row = {
                     "Timestamp": timestamp,
-                    "Kuup2ev": kuupäev_välja.strftime("%Y-%m-%d"),
+                    "Kuupäev": kuupäev_välja.strftime("%Y-%m-%d"),
                     "Summa": summa_val,
                     "Tulu/kulu": "Kulu",
                     "Kategooria": kategooria_lõplik,

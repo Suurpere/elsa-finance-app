@@ -12,4 +12,4 @@ KULU_KATEGOORIAD = ["",
 ]
 KAUPMEHED = ["","Rimi", "Selver", "Maxima", "COOP", "Elektrum", "Tartu Veevärk", "LHV","Apollo"]
 
-ALL_COLUMNS = ["Timestamp", "Kuup2ev", "Summa", "Tulu/kulu", "Kategooria", "Kaupmees", "Kirjeldus"]
+ALL_COLUMNS = ["Timestamp", "Kuupäev", "Summa", "Tulu/kulu", "Kategooria", "Kaupmees", "Kirjeldus"]
