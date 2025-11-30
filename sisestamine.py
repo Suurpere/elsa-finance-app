@@ -9,36 +9,11 @@ def sisesta():
     st.header("✏️ Lisa uus kulu või sissetulek")
 
     prepare_session_df()
+    # Kasutame andmeid, mis on laetud pealehelt (elsa_app.py) või tühja põhja
     df_sisestused = st.session_state["sisestused_df"]
 
-    # 1. Võimalus alustada olemasolevast failist
-    st.markdown("### 1. Alusta olemasolevast failist (valikuline)")
-
-    uploaded_base = st.file_uploader(
-        "Lae olemasolev CSV, et jätkata sinna lisamist",
-        type=["csv"],
-        key="write_base",
-    )
-
-    if uploaded_base is not None and df_sisestused.empty:
-        try:
-            df_base = pd.read_csv(uploaded_base, encoding="utf-8")
-
-            # Tagame, et kõigil veergudel on koht
-            for col in ALL_COLUMNS:
-                if col not in df_base.columns:
-                    df_base[col] = "" if col != "Summa" else 0.0
-
-            df_base = df_base[ALL_COLUMNS]
-            st.session_state["sisestused_df"] = df_base
-            df_sisestused = df_base
-
-            st.success("Olemasolev fail laetud.")
-        except Exception as e:
-            st.error(f"Faili lugemisel tekkis viga: {e}")
-
-    # 2. Uue sissetuleku sisestamine
-    st.markdown("### 2. Lisa uus sissetulek")
+    # --- 1. Uue sissetuleku sisestamine ---
+    st.markdown("### 1. Lisa uus sissetulek")
 
     with st.form("lisa_sissetulek_form"):
         kuupäev_sisse = st.date_input("Kuupäev", format="YYYY-MM-DD", key="kuupäev_sisse")
@@ -69,9 +44,9 @@ def sisesta():
             st.error("Vigane summa. Palun sisesta number (nt 13.02).")
 
     # ------------------------------------------------------------------
-    # 3. Uue väljamineku sisestamine
+    # 2. Uue väljamineku sisestamine
     # ------------------------------------------------------------------
-    st.markdown("### 3. Lisa uus väljaminek")
+    st.markdown("### 2. Lisa uus väljaminek")
 
     # Laeme andmebaasi SIIN, et see oleks värske nii abiplokkidele kui vormile
     db = load_db()
@@ -173,13 +148,13 @@ def sisesta():
             except ValueError:
                 st.error("Vigane summa. Palun sisesta number (nt 13.02).")
 
-    # 4. Näita hetkeandmeid + CSV
+    # 3. Näita hetkeandmeid + CSV
     if not st.session_state["sisestused_df"].empty:
         st.markdown("---")
-        st.markdown("### 4. Praegune CSV sisu")
+        st.markdown("### 3. Praegune CSV sisu")
         st.dataframe(st.session_state["sisestused_df"])
 
-        st.markdown("### 5. Laadi CSV alla (loo / uuenda fail)")
+        st.markdown("### 4. Laadi CSV alla (loo / uuenda fail)")
         csv_bytes = st.session_state["sisestused_df"].to_csv(index=False).encode("utf-8")
 
         st.download_button(
