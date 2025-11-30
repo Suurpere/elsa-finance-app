@@ -1,6 +1,6 @@
 import pandas as pd
 from konstandid import *
-from abifunkfunktsioonid import *
+from abifunktsioonid import *
 import matplotlib.pyplot as plt
 import streamlit as st
 
