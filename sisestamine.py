@@ -3,7 +3,7 @@ from konstandid import *
 from datetime import datetime
 from kategoriseerimine import kategoriseeri
 from andmebaas import load_db, save_db
-
+import streamlit as st # Igaks juhuks importime otse
 
 def sisesta():
     st.header("✏️ Lisa uus kulu või sissetulek")
@@ -68,64 +68,70 @@ def sisesta():
         except ValueError:
             st.error("Vigane summa. Palun sisesta number (nt 13.02).")
 
+    # ------------------------------------------------------------------
     # 3. Uue väljamineku sisestamine
-    st.markdown("### 2. Lisa uus väljaminek")
+    # ------------------------------------------------------------------
+    st.markdown("### 3. Lisa uus väljaminek")
 
-    # ----------------------------------------------
-    # FIXED: proper indentation inside form
-    # ----------------------------------------------
+    # Laeme andmebaasi SIIN, et see oleks värske nii abiplokkidele kui vormile
+    db = load_db()
+    kategooriad = db["categories"]
+    kaupmehed_map = db["merchants"]
+    kaupmehed_list = sorted([""] + list(kaupmehed_map.keys()))
+    kateg_list = sorted([""] + kategooriad)
 
+    # --- ABIPLOKID (VORMIST VÄLJASPOOL) ---
+    # Need peavad olema väljaspool vormi, sest st.button teeb rerun-i.
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        with st.expander("➕ Lisa uus kaupmees"):
+            uus_kaup = st.text_input("Uus kaupmees", key="uus_kaupmees_input")
+            uus_kateg_seos = st.selectbox("Seosta kategooriaga", [""] + kateg_list, key="uus_kaup_kateg")
+            
+            if st.button("Salvesta kaupmees"):
+                if uus_kaup in kaupmehed_map:
+                    st.warning("Kaupmees juba olemas")
+                elif not uus_kaup:
+                    st.warning("Sisesta kaupmehe nimi")
+                elif not uus_kateg_seos:
+                    st.warning("Vali kategooria")
+                else:
+                    kaupmehed_map[uus_kaup] = uus_kateg_seos
+                    save_db(db)
+                    st.success(f"Lisatud: {uus_kaup}")
+                    st.rerun() # Värskendab lehte, et uus kaupmees ilmuks nimekirja
+
+    with col2:
+        with st.expander("➕ Lisa uus kategooria"):
+            uus_k = st.text_input("Uus kategooria", key="uus_kateg_input")
+            if st.button("Salvesta kategooria"):
+                if uus_k and uus_k not in kategooriad:
+                    kategooriad.append(uus_k)
+                    save_db(db)
+                    st.success(f"Lisatud: {uus_k}")
+                    st.rerun() # Värskendab lehte
+                else:
+                    st.warning("Vigane või topelt kategooria")
+
+    # --- PÕHIVORM (VÄLJAMINKEKUD) ---
+    
     with st.form("lisa_väljaminek_form"):
         # inputs inside the form
         kuupäev_välja = st.date_input("Kuupäev", format="YYYY-MM-DD", key="kuupäev_välja")
         summa_str_välja = st.text_input("Summa (näiteks 13.02)", key="summa_välja")
 
-        # load dynamic DB
-        db = load_db()
-        kategooriad = db["categories"]
-        kaupmehed_map = db["merchants"]
-        kaupmehed_list = sorted([""] + list(kaupmehed_map.keys()))
-        kateg_list = sorted([""] + kategooriad)
-
-        # allow adding new merchant
+        # Kasutame siin juba (potentsiaalselt) uuenenud nimekirju
         kaupmees = st.selectbox("Kaupmees (võib jätta tühjaks)", kaupmehed_list, key="kaupmees_väljaminek")
-
-        if st.checkbox("Lisa uus kaupmees", key="lisa_uus_kaupmees_checkbox"):
-            uus_kaup = st.text_input("Sisesta uus kaupmees", key="uus_kaupmees_input")
-            if uus_kaup:
-                uus_kateg = st.selectbox("Seosta kaupmees kategooriaga", [""] + kateg_list, key="uus_kaup_kateg")
-                if st.button("Salvesta uus kaupmees", key="salvesta_uus_kaupmees"):
-                    if uus_kaup in kaupmehed_map:
-                        st.warning("Kaupmees juba olemas")
-                    else:
-                        if uus_kateg == "":
-                            st.warning("Vali kategooria või lisa uus kategooria esimesena")
-                        else:
-                            kaupmehed_map[uus_kaup] = uus_kateg
-                            save_db(db)
-                            st.success(f"Kaupmees '{uus_kaup}' lisatud kategooriasse '{uus_kateg}'")
-                            st.experimental_rerun()
-
         kategooria_välja = st.selectbox("Kulu kategooria (võib jätta tühjaks)", kateg_list, key="kategooria_kulu")
-
-        if st.checkbox("Lisa uus kategooria", key="lisa_uus_kateg_checkbox"):
-            uus_k = st.text_input("Sisesta uus kategooria", key="uus_kateg_input")
-            if st.button("Salvesta uus kategooria", key="salvesta_uus_kateg"):
-                if uus_k and uus_k not in kategooriad:
-                    kategooriad.append(uus_k)
-                    save_db(db)
-                    st.success(f"Kategooria '{uus_k}' lisatud")
-                    st.experimental_rerun()
-                else:
-                    st.warning("Kategooria on tühi või juba olemas")
-
+        
         kirjeldus_välja = st.text_area("Lühikirjeldus (valikuline)", height=80)
 
+        # See on AINUS nupp, mis tohib vormi sees olla
         submitted_välja = st.form_submit_button("Lisa väljaminek")
 
-    # ----------------------------------------------
-    # End of form – validation happens outside the form
-    # ----------------------------------------------
+    # --- VORMI TÖÖTLUS (VÄLJASPOOL VORMI PLOKKI) ---
 
     if submitted_välja:
         kaupmees_täidetud = bool(kaupmees.strip())
@@ -139,7 +145,15 @@ def sisesta():
                 summa_val = float(summa_clean)
                 timestamp = datetime.now().isoformat(timespec="seconds")
 
-                kategooria_lõplik = kategoriseeri(kaupmees, kategooria_välja)
+                # Kui kasutaja valis kaupmehe, aga kategooria jättis tühjaks,
+                # proovime automaatselt leida kategooria
+                kategooria_lõplik = kategooria_välja
+                if kaupmees and not kategooria_lõplik:
+                    # Otsime, kas sellel kaupmehel on andmebaasis kategooria
+                    if kaupmees in kaupmehed_map:
+                         kategooria_lõplik = kaupmehed_map[kaupmees]
+                    else:
+                         kategooria_lõplik = "Määramata" 
 
                 new_row = {
                     "Timestamp": timestamp,
@@ -161,10 +175,11 @@ def sisesta():
 
     # 4. Näita hetkeandmeid + CSV
     if not st.session_state["sisestused_df"].empty:
-        st.markdown("### 3. Praegune CSV sisu")
+        st.markdown("---")
+        st.markdown("### 4. Praegune CSV sisu")
         st.dataframe(st.session_state["sisestused_df"])
 
-        st.markdown("### 4. Laadi CSV alla (loo / uuenda fail)")
+        st.markdown("### 5. Laadi CSV alla (loo / uuenda fail)")
         csv_bytes = st.session_state["sisestused_df"].to_csv(index=False).encode("utf-8")
 
         st.download_button(
