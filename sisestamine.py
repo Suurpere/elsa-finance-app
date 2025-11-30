@@ -2,6 +2,7 @@ from abifunktsioonid import *
 from konstandid import *
 from datetime import datetime
 from kategoriseerimine import kategoriseeri
+from andmebaas import load_db, save_db
 
 
 def sisesta():
@@ -70,13 +71,52 @@ def sisesta():
     st.markdown("### 2. Lisa uus väljaminek")
 
     with st.form("lisa_väljaminek_form"):
-        kuupäev_välja = st.date_input("Kuupäev", format="YYYY-MM-DD", key = "kuupäev_välja")
-        summa_str_välja = st.text_input("Summa (näiteks 13.02)", key = "summa_välja")
-        kaupmees = st.selectbox("Kaupmees (võib jätta tühjaks)", KAUPMEHED, key="kaupmees_väljaminek",)
-        kategooria_välja = st.selectbox("Kulu kategooria (võib jätta tühjaks)",KULU_KATEGOORIAD,key="kategooria_kulu",)
-        kirjeldus_välja = st.text_area("Lühikirjeldus (valikuline)", height=80)
+    kuupäev_välja = st.date_input("Kuupäev", format="YYYY-MM-DD", key="kuupäev_välja")
+    summa_str_välja = st.text_input("Summa (näiteks 13.02)", key="summa_välja")
 
-        submitted_välja = st.form_submit_button("Lisa väljaminek")
+    # load dynamic DB
+    db = load_db()
+    kategooriad = db["categories"]
+    kaupmehed_map = db["merchants"]
+    kaupmehed_list = sorted([""] + list(kaupmehed_map.keys()))
+    kateg_list = sorted([""] + kategooriad)
+
+    # allow adding new category or merchant
+    kaupmees = st.selectbox("Kaupmees (võib jätta tühjaks)", kaupmehed_list, key="kaupmees_väljaminek",)
+    if st.checkbox("Lisa uus kaupmees", key="lisa_uus_kaupmees_checkbox"):
+        uus_kaup = st.text_input("Sisesta uus kaupmees", key="uus_kaupmees_input")
+        if uus_kaup:
+            # offer category selection for new merchant
+            uus_kateg = st.selectbox("Seosta kaupmees kategooriaga", [""] + kateg_list, key="uus_kaup_kateg")
+            if st.button("Salvesta uus kaupmees", key="salvesta_uus_kaupmees"):
+                if uus_kaup in kaupmehed_map:
+                    st.warning("Kaupmees juba olemas")
+                else:
+                    # if category empty -> ask user to add new category below instead
+                    if uus_kateg == "":
+                        st.warning("Vali kategooria või lisa uus kategooria esimesena")
+                    else:
+                        kaupmehed_map[uus_kaup] = uus_kateg
+                        save_db(db)
+                        st.success(f"Kaupmees '{uus_kaup}' lisatud kategooriasse '{uus_kateg}'")
+                        st.experimental_rerun()
+
+    kategooria_välja = st.selectbox("Kulu kategooria (võib jätta tühjaks)", kateg_list, key="kategooria_kulu")
+    if st.checkbox("Lisa uus kategooria", key="lisa_uus_kateg_checkbox"):
+        uus_k = st.text_input("Sisesta uus kategooria", key="uus_kateg_input")
+        if st.button("Salvesta uus kategooria", key="salvesta_uus_kateg"):
+            if uus_k and uus_k not in kategooriad:
+                kategooriad.append(uus_k)
+                save_db(db)
+                st.success(f"Kategooria '{uus_k}' lisatud")
+                st.experimental_rerun()
+            else:
+                st.warning("Kategooria on tühi või juba olemas")
+
+    kirjeldus_välja = st.text_area("Lühikirjeldus (valikuline)", height=80)
+
+    submitted_välja = st.form_submit_button("Lisa väljaminek")
+
 
     if submitted_välja:
         kaupmees_täidetud = bool(kaupmees.strip())
