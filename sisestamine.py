@@ -71,8 +71,8 @@ def sisesta():
     st.markdown("### 2. Lisa uus väljaminek")
 
     with st.form("lisa_väljaminek_form"):
-    kuupäev_välja = st.date_input("Kuupäev", format="YYYY-MM-DD", key="kuupäev_välja")
-    summa_str_välja = st.text_input("Summa (näiteks 13.02)", key="summa_välja")
+        kuupäev_välja = st.date_input("Kuupäev", format="YYYY-MM-DD", key="kuupäev_välja")
+        summa_str_välja = st.text_input("Summa (näiteks 13.02)", key="summa_välja")
 
     # load dynamic DB
     db = load_db()
