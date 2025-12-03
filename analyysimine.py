@@ -12,159 +12,165 @@ def analyysi():
         st.info("Andmed puuduvad. Palun lae fail külgribalt või sisesta andmed käsitsi.")
         return
 
-    # Teeme koopia, et puhastamine ei muudaks algandmeid sisestusvaates
     df_raw = st.session_state["sisestused_df"].copy()
-
-    # NOTE: See funktsioon (puhasta_andmed) on eeldatavasti defineeritud failis 'abifunktsioonid.py'
-    # Kuna seda faili ei ole siin, eeldan selle olemasolu ja funktsionaalsust.
-    # Peate tagama, et 'puhasta_andmed' on imporditav abifailist.
     df, eemaldatud = puhasta_andmed(df_raw)
 
     if eemaldatud > 0:
-        st.warning(f"Hoiatus: {eemaldatud} rida eemaldati analüüsist (vigased andmed või summa=0).")
+        st.warning(f"{eemaldatud} rida eemaldati analüüsist (vigased andmed või summa=0).")
 
     if df.empty:
-        st.warning("Pärast puhastust ei jäänud ühtegi kehtivat rida analüüsiks.")
-    else:
-        # 1. Filtrid: Tulu/kulu + kuupäevavahemik
-        st.markdown("### 1. Filtrid")
+        st.warning("Pärast puhastust ei jäänud kehtivaid ridu.")
+        return
 
-        col1, col2 = st.columns(2)
+    # -----------------------------
+    # 1. FILTRID
+    # -----------------------------
+    st.markdown("### 1. Filtrid")
 
-        with col1:
-            tyyp_filter = st.selectbox(
-                "Millist tüüpi kirjeid vaadata?",
-                ["Kõik", "Ainult kulud", "Ainult sissetulekud"],
-            )
+    col1, col2 = st.columns(2)
+    with col1:
+        tyyp_filter = st.selectbox(
+            "Millist tüüpi kirjeid vaadata?",
+            ["Kõik", "Ainult kulud", "Ainult sissetulekud"],
+        )
 
-        with col2:
-            min_date = df["Kuupäev"].min().date()
-            max_date = df["Kuupäev"].max().date()
-            date_range = st.date_input(
-                "Vali kuupäevavahemik",
-                (min_date, max_date),
-                format="YYYY-MM-DD",
-            )
+    with col2:
+        min_date = df["Kuupäev"].min().date()
+        max_date = df["Kuupäev"].max().date()
+        date_range = st.date_input(
+            "Vali kuupäevavahemik",
+            (min_date, max_date),
+            format="YYYY-MM-DD",
+        )
 
-        # Tüübifilter
-        if tyyp_filter == "Ainult kulud":
-            df = df[df["Tulu/kulu"] == "Kulu"]
-        elif tyyp_filter == "Ainult sissetulekud":
-            df = df[df["Tulu/kulu"] == "Tulu"]
+    # Filter type
+    if tyyp_filter == "Ainult kulud":
+        df = df[df["Tulu/kulu"] == "Kulu"]
+    elif tyyp_filter == "Ainult sissetulekud":
+        df = df[df["Tulu/kulu"] == "Tulu"]
 
-        # Kuupäevavahemik
-        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-            start_date, end_date = date_range
-            mask = (df["Kuupäev"].dt.date >= start_date) & (df["Kuupäev"].dt.date <= end_date)
-            df = df[mask]
+    # Filter by date range
+    if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
+        start, end = date_range
+        df = df[(df["Kuupäev"].dt.date >= start) & (df["Kuupäev"].dt.date <= end)]
 
-        if df.empty:
-            st.warning("Filtrite järel andmeid ei jäänud.")
+    if df.empty:
+        st.warning("Filtrite järel andmeid ei jäänud.")
+        return
+
+    # -----------------------------
+    # 2. KOGUPILT KATEGOORIATE KAUPA
+    # -----------------------------
+    st.markdown("### 2. Kogupilt kategooriate kaupa")
+
+    by_cat = df.groupby("Kategooria")["Summa"].sum().sort_values(ascending=False)
+    total = by_cat.sum()
+
+    summary = pd.DataFrame({
+        "Summa": by_cat,
+        "Osakaal %": (by_cat / total * 100).round(1)
+    })
+
+    st.write("Kokku:", float(total))
+    st.dataframe(summary)
+
+    # Chart colors
+    def get_category_color(cat):
+        t = df[df["Kategooria"] == cat]["Tulu/kulu"].iloc[0]
+        return "green" if t == "Tulu" else "red"
+
+    colors = [get_category_color(cat) for cat in by_cat.index]
+
+    # Main chart
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.bar(by_cat.index.astype(str), by_cat.values, color=colors)
+
+    # Bar labels
+    for bar in bars:
+        h = bar.get_height()
+        ax.annotate(f"{h:.0f}", (bar.get_x() + bar.get_width()/2, h),
+                    xytext=(0, 4), textcoords="offset points",
+                    ha="center", fontsize=10)
+
+    ax.set_title("Summa kategooriate kaupa (roheline=Tulu, punane=Kulu)")
+    ax.set_ylabel("Summa")
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+    st.pyplot(fig)
+
+    # -----------------------------
+    # 3. DETAILNE AJA ANALÜÜS
+    # -----------------------------
+    st.markdown("### 3. Ajavahemiku analüüs ühe kategooria kaupa")
+
+    valitav_kategooria = st.selectbox("Vali kategooria", by_cat.index)
+    ajavahemik = st.selectbox("Ajavahemik", ["Päev", "Nädal", "Kuu", "Kvartal", "Aasta"])
+
+    df_kat = df[df["Kategooria"] == valitav_kategooria]
+
+    if not df_kat.empty:
+        if ajavahemik == "Päev":
+            grp = df_kat.groupby(df_kat["Kuupäev"].dt.date)["Summa"].sum()
+        elif ajavahemik == "Nädal":
+            grp = df_kat.groupby(df_kat["Kuupäev"].dt.to_period("W"))["Summa"].sum()
+        elif ajavahemik == "Kuu":
+            grp = df_kat.groupby(df_kat["Kuupäev"].dt.to_period("M"))["Summa"].sum()
+        elif ajavahemik == "Kvartal":
+            grp = df_kat.groupby(df_kat["Kuupäev"].dt.to_period("Q"))["Summa"].sum()
         else:
-            # 2. Kogupilt kategooriate kaupa (protsent + arv)
-            st.markdown("### 2. Kogupilt kategooriate kaupa")
+            grp = df_kat.groupby(df_kat["Kuupäev"].dt.to_period("Y"))["Summa"].sum()
 
-            # Grupeerimine ja summa leidmine
-            by_cat = (
-                df.groupby("Kategooria")["Summa"]
-                .sum()
-                .sort_values(ascending=False)
-            )
-            total = by_cat.sum()
+        labels = grp.index.astype(str)
 
-            summary = pd.DataFrame(
-                {
-                    "Summa": by_cat,
-                    "Osakaal %": (by_cat / total * 100).round(1),
-                }
-            )
+        fig2, ax2 = plt.subplots(figsize=(10, 4))
+        bars2 = ax2.bar(labels, grp.values,
+                        color=get_category_color(valitav_kategooria))
 
-            st.write("Kokku:", float(total))
-            st.dataframe(summary)
+        # Numeric labels
+        for bar in bars2:
+            h = bar.get_height()
+            ax2.annotate(f"{h:.0f}", (bar.get_x() + bar.get_width()/2, h),
+                         xytext=(0, 4), textcoords="offset points",
+                         ha="center", fontsize=10)
 
-            # --- GRAAFIK: Vertikaalne tulpdiagramm värvide ja väärtustega ---
+        ax2.set_title(f"{valitav_kategooria} – {ajavahemik} lõikes")
+        plt.setp(ax2.get_xticklabels(), rotation=45, ha="right")
+        st.pyplot(fig2)
 
-            fig, ax = plt.subplots(figsize=(10, 6))
+    # -----------------------------
+    # 4. VÕRDLUSGRAAFIK (UUS)
+    # -----------------------------
+    st.markdown("### 4. Kategooriate võrdlusgraafik")
 
-            # Määrame värvid: Tulu = roheline, Kulu = punane
-            color_map = []
-            for cat in by_cat.index:
-                # Leiame kategooria tüübi, võttes esimene vaste kategooria kohta
-                sample_row = df[df["Kategooria"] == cat]
-                if not sample_row.empty:
-                    # Määra värv vastavalt Tulu/kulu tüübile
-                    cat_type = sample_row["Tulu/kulu"].iloc[0]
-                    color_map.append("green" if cat_type == "Tulu" else "red")
-                else:
-                    color_map.append("gray") # Varuvariandina hall
+    st.write("Vali kuni 2 kategooriat, mida soovid omavahel võrrelda:")
 
-            # Vertikaalne tulpdiagramm (ax.bar)
-            bars = ax.bar(by_cat.index.astype(str), by_cat.values, color=color_map)
+    # Checkbox-based selection UI
+    selected = []
+    for cat in by_cat.index:
+        if st.checkbox(cat):
+            selected.append(cat)
 
-            # Numbrid tulpade kohale (numbrid peavad olema peal)
-            for bar in bars:
-                height = bar.get_height()
-                ax.annotate(
-                    f"{height:.0f}",
-                    xy=(bar.get_x() + bar.get_width() / 2, height),
-                    xytext=(0, 5), # Nihuta teksti veidi kõrgemale
-                    textcoords="offset points",
-                    ha="center",
-                    va="bottom",
-                    fontsize=10,
-                )
+    if len(selected) == 0:
+        st.info("Vali vähemalt 1 kategooria.")
+    elif len(selected) > 2:
+        st.warning("Saad valida maksimaalselt 2 kategooriat.")
+    else:
+        # Prepare data
+        comp = df[df["Kategooria"].isin(selected)]
+        comp_group = comp.groupby("Kategooria")["Summa"].sum()
 
-            ax.set_ylabel("Summa")
-            ax.set_title("Summa kategooriate kaupa (Tulu: Roheline, Kulu: Punane)")
-            # Pööra x-telje silte, et need mahuksid
-            plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
-            plt.tight_layout() # Optimeeri paigutus
+        # Colors based on income/expense
+        comp_colors = [get_category_color(cat) for cat in comp_group.index]
 
-            st.pyplot(fig)
+        figc, axc = plt.subplots(figsize=(8, 5))
+        barsc = axc.bar(comp_group.index.astype(str), comp_group.values, color=comp_colors)
 
-            # 3. Detailne vaade
-            st.markdown("### 3. Ajavahemiku analüüs ühe kategooria kaupa")
+        # Numeric bar labels
+        for bar in barsc:
+            h = bar.get_height()
+            axc.annotate(f"{h:.0f}", (bar.get_x() + bar.get_width()/2, h),
+                         xytext=(0, 4), textcoords="offset points",
+                         ha="center", fontsize=10)
 
-            valitav_kategooria = st.selectbox(
-                "Vali kategooria detailsema vaate jaoks",
-                options=by_cat.index,
-            )
-
-            ajavahemiku_valik = st.selectbox(
-                "Vali ajavahemik:",
-                options=["Päev", "Nädal", "Kuu", "Kvartal", "Aasta"],
-            )
-
-            df_kat = df[df["Kategooria"] == valitav_kategooria]
-
-            if not df_kat.empty:
-                # Kuupäeva grupeerimine vastavalt valikule
-                if ajavahemiku_valik == "Päev":
-                    # Kasutame .dt.date, et saada kuupäev ilma kellaajata
-                    jaotus = df_kat.groupby(df_kat["Kuupäev"].dt.date)["Summa"].sum()
-                elif ajavahemiku_valik == "Nädal":
-                    jaotus = df_kat.groupby(df_kat["Kuupäev"].dt.to_period("W"))["Summa"].sum()
-                elif ajavahemiku_valik == "Kuu":
-                    jaotus = df_kat.groupby(df_kat["Kuupäev"].dt.to_period("M"))["Summa"].sum()
-                elif ajavahemiku_valik == "Kvartal":
-                    jaotus = df_kat.groupby(df_kat["Kuupäev"].dt.to_period("Q"))["Summa"].sum()
-                elif ajavahemiku_valik == "Aasta":
-                    jaotus = df_kat.groupby(df_kat["Kuupäev"].dt.to_period("Y"))["Summa"].sum()
-                else:
-                    jaotus = None
-
-                if jaotus is not None and not jaotus.empty:
-                    labels = jaotus.index.astype(str)
-
-                    fig3, ax3 = plt.subplots(figsize=(10, 4))
-                    ax3.bar(labels, jaotus.values)
-                    ax3.set_title(f"{valitav_kategooria} – {ajavahemiku_valik} lõikes")
-                    ax3.set_xlabel(ajavahemiku_valik)
-                    ax3.set_ylabel("Summa")
-                    plt.setp(ax3.get_xticklabels(), rotation=45, ha="right")
-                    plt.tight_layout()
-                    st.pyplot(fig3)
-                else:
-                    st.info("Selles kategoorias pole valitud perioodi lõikes andmeid.")
-            else:
-                st.info("Valitud kategoorias pole andmeid.")
+        axc.set_title("Kategooriate võrdlus")
+        axc.set_ylabel("Summa")
+        st.pyplot(figc)
