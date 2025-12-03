@@ -35,7 +35,8 @@ DEFAULT_DB = {
         "III sammas": "Investeeringud",
         "Lapse riided": "Laps",
         "Riided": "Muu",
-        "Mikroinvesteerimine": "Investeeringud"
+        "Mikroinvesteerimine": "Investeeringud",
+        "Luminor": "Laenud"
     }
 }
 
