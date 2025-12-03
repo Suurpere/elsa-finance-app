@@ -35,14 +35,24 @@ def analyysi():
         tyyp_filter = st.selectbox("Tüüp", ["Kõik", "Ainult kulud", "Ainult sissetulekud"])
     
     with col2:
-        # Vältimaks viga tühja DataFrame'i korral (Kuigi eelnev kaitse peaks olema)
-        if not df.empty and "Kuupäev" in df.columns:
-            d1_val = df["Kuupäev"].min().date()
-            d2_val = df["Kuupäev"].max().date()
-        else:
-            d1_val = date.today()
-            d2_val = date.today()
+        # Vältimaks viga kuupäeva min/max leidmisel, kui andmestikus pole ühtegi kehtivat kuupäeva.
+        d1_val = date.today()
+        d2_val = date.today()
 
+        if "Kuupäev" in df.columns and not df["Kuupäev"].empty:
+            try:
+                # Proovime leida min/max kehtivat kuupäeva
+                min_date = df["Kuupäev"].min()
+                max_date = df["Kuupäev"].max()
+                
+                # Kontrollime, et min ja max ei oleks NaT (Not a Time)
+                if pd.notna(min_date) and pd.notna(max_date):
+                    d1_val = min_date.date()
+                    d2_val = max_date.date()
+            except Exception:
+                # Kui ebaõnnestub (nt. rikutud andmete tõttu), kasutame vaikimisi tänast kuupäeva
+                st.warning("Kuupäevaveerus tekkis viga. Kasutatakse tänast kuupäeva.")
+        
         date_range = st.date_input("Vahemik", (d1_val, d2_val))
 
     # Rakendame filtrid
