@@ -1,5 +1,5 @@
-from sisestamine import sisesta
-from analyysimine import analyysi
+from sisestamine import *
+from analyysimine import *
 from lugemine import loe
 from selgitamine import selgita
 from abifunktsioonid import prepare_session_df
