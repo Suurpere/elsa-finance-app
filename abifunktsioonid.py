@@ -1,22 +1,32 @@
-from konstandid import ALL_COLUMNS
+from andmebaas import ALL_COLUMNS
 import pandas as pd
 import streamlit as st
 
-# --- Abifunktsioonid ---
-
 def prepare_session_df():
-    """Loob tühja DataFrame'i õige veerustruktuuriga, kui seda veel ei ole."""
+    """
+    Valmistab ette Streamliti sessiooni andmete hoidmiseks.
+    Kui 'sisestused_df' puudub, luuakse tühi tabel õigete veergudega.
+    """
     if "sisestused_df" not in st.session_state:
         st.session_state["sisestused_df"] = pd.DataFrame(columns=ALL_COLUMNS)
 
 
 def puhasta_andmed(df: pd.DataFrame):
     """
-    - Tagab, et kõik vajalikud veerud on olemas
-    - Teeb tüübid korda
-    - Eemaldab vead / tühjad read
+    Puhastab ja korrastab andmed analüüsi jaoks.
+    
+    Tegevused:
+    1. Lisab puuduolevad veerud.
+    2. Teisendab 'Timestamp' ja 'Kuupäev' veerud õigesse ajavormingusse.
+    3. Teisendab 'Summa' veeru numbriteks.
+    4. Eemaldab read, kus kuupäev või summa on vigane/tühi.
+    5. Täidab tühjad lüngad tekstiveergudes "Määramata".
+    
+    Tagastab:
+        - df: Puhastatud DataFrame
+        - eemaldatud: Arv, mitu rida eemaldati (nt null-summade tõttu)
     """
-    # Lisa puuduolevad veerud
+    # 1. Lisa puuduolevad veerud
     for col in ALL_COLUMNS:
         if col not in df.columns:
             if col == "Summa":
@@ -24,28 +34,33 @@ def puhasta_andmed(df: pd.DataFrame):
             else:
                 df[col] = ""
 
-    # Timestamp ja kuupäev
+    # 2. Ajatemplid korda
     df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
 
+    # Kuupäeva loogika
     if "Kuupäev" in df.columns:
         df["Kuupäev"] = pd.to_datetime(df["Kuupäev"], errors="coerce")
     else:
         df["Kuupäev"] = df["Timestamp"].dt.date
         df["Kuupäev"] = pd.to_datetime(df["Kuupäev"], errors="coerce")
 
-    # Summa numbriks
+    # 3. Summad numbriks
     df["Summa"] = pd.to_numeric(df["Summa"], errors="coerce")
 
-    # Eemaldame selgelt vigased read
+    # 4. Eemalda vigased read
     df.dropna(subset=["Kuupäev", "Summa"], inplace=True)
 
-    df["Kategooria"].fillna("Määramata", inplace=True)
-
-    if "Tulu/kulu" not in df.columns or df["Tulu/kulu"].eq("").all():
+    # 5. Täida tühimikud
+    df["Kategooria"] = df["Kategooria"].fillna("Määramata")
+    
+    if "Tulu/kulu" not in df.columns:
         df["Tulu/kulu"] = "Määramata"
+    else:
+        df["Tulu/kulu"] = df["Tulu/kulu"].fillna("Määramata")
 
-    algne = len(df)
+    algne_pikkus = len(df)
+    # Eemalda read, kus summa on 0
     df = df[df["Summa"] != 0]
-    eemaldatud = algne - len(df)
+    eemaldatud = algne_pikkus - len(df)
 
     return df, eemaldatud
