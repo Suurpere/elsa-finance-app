@@ -14,7 +14,8 @@ def selgita():
     st.write(
         "**Juhised:**\n"
         "1. Lae soovi korral vasakult menüüst üles olemasolev CSV fail.\n"
-        "2. Vali **'Sisestamine'**, et lisada uusi tehinguid.\n"
-        "3. Kui kaupmeest või kategooriat pole nimekirjas, saad selle ajutiselt lisada ja saata arendajale palve see püsivalt andmebaasi lisada (GitHub Issue).\n"
-        "4. Vali **'Analüüs'**, et näha kuhu raha kaob."
+        "2. Vali **'Sisestamine'**, et lisada uusi tulusid või kulusid faili.\n"
+        "3. Selleks, et uuendatud faili alla laadida, lae peale tehingute sisestamist fail alla.\n"
+        "4. Vali **'Analüüs'**, et näha kuhu raha kaob."\n"
+        "5. Kui soovid, saad andmeid analüüsida ka erinevate perioodide kaupa."
     )
