@@ -2,6 +2,8 @@ import pandas as pd
 from abifunktsioonid import puhasta_andmed
 import matplotlib.pyplot as plt
 import streamlit as st
+from datetime import date # Impordi date type
+
 
 def analyysi():
     """
@@ -33,9 +35,15 @@ def analyysi():
         tyyp_filter = st.selectbox("Tüüp", ["Kõik", "Ainult kulud", "Ainult sissetulekud"])
     
     with col2:
-        d1 = df["Kuupäev"].min().date()
-        d2 = df["Kuupäev"].max().date()
-        date_range = st.date_input("Vahemik", (d1, d2))
+        # Vältimaks viga tühja DataFrame'i korral (Kuigi eelnev kaitse peaks olema)
+        if not df.empty and "Kuupäev" in df.columns:
+            d1_val = df["Kuupäev"].min().date()
+            d2_val = df["Kuupäev"].max().date()
+        else:
+            d1_val = date.today()
+            d2_val = date.today()
+
+        date_range = st.date_input("Vahemik", (d1_val, d2_val))
 
     # Rakendame filtrid
     if tyyp_filter == "Ainult kulud":
@@ -44,7 +52,13 @@ def analyysi():
         df = df[df["Tulu/kulu"] == "Tulu"]
 
     if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-        df = df[(df["Kuupäev"].dt.date >= date_range[0]) & (df["Kuupäev"].dt.date <= date_range[1])]
+        # Esmalt tagame, et Kuupäev on date tüüpi enne võrdlemist
+        start_date = date_range[0]
+        end_date = date_range[1]
+        
+        # Filtreerime kuupäevade vahemiku järgi (peame võrdlema date objektidega)
+        df = df[(df["Kuupäev"].dt.date >= start_date) & (df["Kuupäev"].dt.date <= end_date)]
+
 
     if df.empty:
         st.warning("Valitud filtritega andmeid ei leitud.")
@@ -53,25 +67,25 @@ def analyysi():
     # --- ÜLEVAADE KATEGOORIATE KAUPA ---
     st.markdown("### 2. Kogupilt kategooriate kaupa")
 
-    by_cat = df.groupby("Kategooria")["Summa"].sum().sort_values(ascending=False)
+    # Grupeerime kategooriad ja summeerime
+    by_cat = df.groupby(["Kategooria", "Tulu/kulu"])["Summa"].sum().unstack(fill_value=0)
     
-    st.write(f"**Kokku valitud perioodil:** {by_cat.sum():.2f} €")
-    st.dataframe(by_cat)
+    # Loome värvikaardi: Tulu (roheline) ja Kulu (punane)
+    final_df = pd.DataFrame({
+        'Summa': by_cat.sum(axis=1),
+        'Tüüp': by_cat.idxmax(axis=1) # Määrab, kas tegu oli valdavalt Tulu või Kuluga
+    }).sort_values(by='Summa', ascending=False)
+    
+    st.write(f"**Kokku valitud perioodil:** {final_df['Summa'].sum():.2f} €")
+    st.dataframe(final_df)
 
     # --- GRAAFIK (Vertikaalne tulpdiagramm) ---
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    # Määrame värvid: Tulu=Roheline, Kulu=Punane, Muu=Hall
-    color_map = []
-    for cat in by_cat.index:
-        sample = df[df["Kategooria"] == cat]
-        if not sample.empty:
-            tüüp = sample["Tulu/kulu"].iloc[0]
-            color_map.append("green" if tüüp == "Tulu" else "red")
-        else:
-            color_map.append("gray")
+    # Määrame värvid final_df põhjal
+    color_map = final_df['Tüüp'].apply(lambda x: "green" if x == "Tulu" else "red").tolist()
 
-    bars = ax.bar(by_cat.index.astype(str), by_cat.values, color=color_map)
+    bars = ax.bar(final_df.index.astype(str), final_df['Summa'].values, color=color_map)
 
     # Kirjutame numbrid tulpade kohale
     for bar in bars:
@@ -94,7 +108,12 @@ def analyysi():
     # --- DETAILNE AJALINE VAADE ---
     st.markdown("### 3. Ajaline vaade")
     
-    valitav_cat = st.selectbox("Vali kategooria detailideks", by_cat.index)
+    valitav_cat_options = final_df.index.tolist()
+    if not valitav_cat_options:
+        st.info("Kategooria valimiseks pole andmeid.")
+        return
+
+    valitav_cat = st.selectbox("Vali kategooria detailideks", valitav_cat_options)
     periood = st.selectbox("Periood", ["Päev", "Nädal", "Kuu", "Aasta"])
     
     df_cat = df[df["Kategooria"] == valitav_cat]
@@ -112,9 +131,9 @@ def analyysi():
         
         fig2, ax2 = plt.subplots(figsize=(10, 4))
         
-        # Leiame kategooria värvi põhigraafikult
-        cat_idx = list(by_cat.index).index(valitav_cat)
-        cat_color = color_map[cat_idx]
+        # Leiame kategooria värvi final_df-st
+        cat_type = final_df.loc[valitav_cat, 'Tüüp']
+        cat_color = "green" if cat_type == "Tulu" else "red"
         
         bars2 = ax2.bar(jaotus.index.astype(str), jaotus.values, color=cat_color)
         
