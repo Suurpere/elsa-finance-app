@@ -2,19 +2,53 @@ from abifunktsioonid import *
 from konstandid import *
 from datetime import datetime
 from kategoriseerimine import kategoriseeri
-from andmebaas import load_db, save_db
-import streamlit as st # Igaks juhuks importime otse
+from andmebaas import load_db
+import streamlit as st
+import pandas as pd
+from github import Github
+
+# --- GITHUBI FUNKTSIOONID ---
+
+def saada_soov_githubi(tyyp, nimi, seos=""):
+    """
+    Loob GitHubi repositooriumis uue 'Issue', et arendaja teaks andmebaasi uuendada.
+    """
+    try:
+        # Kontrollime, kas saladused on olemas
+        if "github" not in st.secrets:
+            return False, "GitHubi seadistus puudub (secrets)."
+
+        token = st.secrets["github"]["token"]
+        repo_name = st.secrets["github"]["repo_name"]
+
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        
+        # Koostame Issue sisu
+        if tyyp == "Kaupmees":
+            title = f"Uus kaupmees: {nimi}"
+            body = f"Kasutaja soovib lisada kaupmehe: **{nimi}**\nSeos kategooriaga: **{seos}**"
+        else:
+            title = f"Uus kategooria: {nimi}"
+            body = f"Kasutaja soovib lisada kategooria: **{nimi}**"
+
+        repo.create_issue(title=title, body=body, labels=["enhancement"])
+        
+        return True, "Soov edastatud arendajale (GitHub Issue)!"
+    except Exception as e:
+        return False, f"Viga saatmisel: {str(e)}"
+
+
+# --- PÕHIFUNKTSIOON ---
 
 def sisesta():
     st.header("✏️ Lisa uus kulu või sissetulek")
 
     prepare_session_df()
-    # Kasutame andmeid, mis on laetud pealehelt (elsa_app.py) või tühja põhja
     df_sisestused = st.session_state["sisestused_df"]
 
-    # --- 1. Uue sissetuleku sisestamine ---
+    # 1. SISSETULEKUD
     st.markdown("### 1. Lisa uus sissetulek")
-
     with st.form("lisa_sissetulek_form"):
         kuupäev_sisse = st.date_input("Kuupäev", format="YYYY-MM-DD", key="kuupäev_sisse")
         summa_str_sisse = st.text_input("Summa (näiteks 13.02)", key="summa_sisse")
@@ -44,119 +78,134 @@ def sisesta():
             st.error("Vigane summa. Palun sisesta number (nt 13.02).")
 
     # ------------------------------------------------------------------
-    # 2. Uue väljamineku sisestamine
+    # 2. VÄLJAMINEKUD
     # ------------------------------------------------------------------
+    st.markdown("---")
     st.markdown("### 2. Lisa uus väljaminek")
 
-    # Laeme andmebaasi SIIN, et see oleks värske nii abiplokkidele kui vormile
+    # Laeme põhiandmebaasi
     db = load_db()
-    kategooriad = db["categories"]
-    kaupmehed_map = db["merchants"]
-    kaupmehed_list = sorted([""] + list(kaupmehed_map.keys()))
-    kateg_list = sorted([""] + kategooriad)
-
-    # --- ABIPLOKID (VORMIST VÄLJASPOOL) ---
-    # Need peavad olema väljaspool vormi, sest st.button teeb rerun-i.
     
+    # --- AJUTISED MUUDATUSED SESSIOONIS ---
+    # Kui kasutaja on lisanud uue kategooria, hoiame seda ajutiselt meeles, 
+    # et ta saaks seda kohe kasutada, isegi kui GitHubi pole veel uuendatud.
+    if "temp_merchants" not in st.session_state:
+        st.session_state["temp_merchants"] = {}
+    if "temp_categories" not in st.session_state:
+        st.session_state["temp_categories"] = []
+
+    # Ühendame andmebaasi ja ajutised asjad
+    koik_kategooriad = sorted(list(set(db["categories"] + st.session_state["temp_categories"])))
+    koik_kaupmehed = sorted(list(set(list(db["merchants"].keys()) + list(st.session_state["temp_merchants"].keys()))))
+
+    # Listid dropdownide jaoks
+    kateg_list = [""] + koik_kategooriad
+    kaupmehed_list = [""] + koik_kaupmehed
+
+    # --- SOOVIAVALDUSED (Expanderid) ---
     col1, col2 = st.columns(2)
     
     with col1:
-        with st.expander("➕ Lisa uus kaupmees"):
-            uus_kaup = st.text_input("Uus kaupmees", key="uus_kaupmees_input")
-            uus_kateg_seos = st.selectbox("Seosta kategooriaga", [""] + kateg_list, key="uus_kaup_kateg")
+        with st.expander("➕ Kaupmees puudub?"):
+            st.caption("Lisa kaupmees ajutiselt ja saada arendajale palve see andmebaasi lisada.")
+            uus_kaup = st.text_input("Uus kaupmees", key="req_kaup")
+            uus_kaup_kat = st.selectbox("Seosta kategooriaga", kateg_list, key="req_kaup_kat")
             
-            if st.button("Salvesta kaupmees"):
-                if uus_kaup in kaupmehed_map:
-                    st.warning("Kaupmees juba olemas")
-                elif not uus_kaup:
-                    st.warning("Sisesta kaupmehe nimi")
-                elif not uus_kateg_seos:
-                    st.warning("Vali kategooria")
+            if st.button("Kasuta ja teavita arendajat", key="btn_req_kaup"):
+                if uus_kaup and uus_kaup_kat:
+                    # 1. Lisa ajutiselt sessiooni
+                    st.session_state["temp_merchants"][uus_kaup] = uus_kaup_kat
+                    # 2. Saada info arendajale
+                    success, msg = saada_soov_githubi("Kaupmees", uus_kaup, uus_kaup_kat)
+                    if success:
+                        st.success(f"Kaupmees '{uus_kaup}' lisatud valikusse! ({msg})")
+                        st.rerun()
+                    else:
+                        st.warning(f"Kaupmees lisatud valikusse, aga teavitamine ebaõnnestus: {msg}")
+                        st.rerun()
                 else:
-                    kaupmehed_map[uus_kaup] = uus_kateg_seos
-                    save_db(db)
-                    st.success(f"Lisatud: {uus_kaup}")
-                    st.rerun() # Värskendab lehte, et uus kaupmees ilmuks nimekirja
+                    st.warning("Täida väljad!")
 
     with col2:
-        with st.expander("➕ Lisa uus kategooria"):
-            uus_k = st.text_input("Uus kategooria", key="uus_kateg_input")
-            if st.button("Salvesta kategooria"):
-                if uus_k and uus_k not in kategooriad:
-                    kategooriad.append(uus_k)
-                    save_db(db)
-                    st.success(f"Lisatud: {uus_k}")
-                    st.rerun() # Värskendab lehte
+        with st.expander("➕ Kategooria puudub?"):
+            st.caption("Lisa kategooria ajutiselt ja saada arendajale palve see andmebaasi lisada.")
+            uus_kat = st.text_input("Uus kategooria", key="req_kat")
+            
+            if st.button("Kasuta ja teavita arendajat", key="btn_req_kat"):
+                if uus_kat and uus_kat not in koik_kategooriad:
+                    # 1. Lisa ajutiselt sessiooni
+                    st.session_state["temp_categories"].append(uus_kat)
+                    # 2. Saada info arendajale
+                    success, msg = saada_soov_githubi("Kategooria", uus_kat)
+                    if success:
+                        st.success(f"Kategooria '{uus_kat}' lisatud valikusse! ({msg})")
+                        st.rerun()
+                    else:
+                        st.warning(f"Kategooria lisatud valikusse, aga teavitamine ebaõnnestus: {msg}")
+                        st.rerun()
+                elif uus_kat in koik_kategooriad:
+                    st.warning("See kategooria on juba olemas.")
                 else:
-                    st.warning("Vigane või topelt kategooria")
+                    st.warning("Sisesta nimi.")
 
-    # --- PÕHIVORM (VÄLJAMINKEKUD) ---
+    # --- VORM ---
     
     with st.form("lisa_väljaminek_form"):
-        # inputs inside the form
         kuupäev_välja = st.date_input("Kuupäev", format="YYYY-MM-DD", key="kuupäev_välja")
         summa_str_välja = st.text_input("Summa (näiteks 13.02)", key="summa_välja")
 
-        # Kasutame siin juba (potentsiaalselt) uuenenud nimekirju
         kaupmees = st.selectbox("Kaupmees (võib jätta tühjaks)", kaupmehed_list, key="kaupmees_väljaminek")
         kategooria_välja = st.selectbox("Kulu kategooria (võib jätta tühjaks)", kateg_list, key="kategooria_kulu")
         
         kirjeldus_välja = st.text_area("Lühikirjeldus (valikuline)", height=80)
 
-        # See on AINUS nupp, mis tohib vormi sees olla
         submitted_välja = st.form_submit_button("Lisa väljaminek")
 
-    # --- VORMI TÖÖTLUS (VÄLJASPOOL VORMI PLOKKI) ---
-
     if submitted_välja:
-        kaupmees_täidetud = bool(kaupmees.strip())
-        kategooria_täidetud = bool(kategooria_välja.strip())
+        try:
+            summa_clean = summa_str_välja.replace(",", ".")
+            summa_val = float(summa_clean)
+            timestamp = datetime.now().isoformat(timespec="seconds")
 
-        if not kaupmees_täidetud and not kategooria_täidetud:
-            st.error("Palun vali vähemalt kaupmees või kategooria.")
-        else:
-            try:
-                summa_clean = summa_str_välja.replace(",", ".")
-                summa_val = float(summa_clean)
-                timestamp = datetime.now().isoformat(timespec="seconds")
+            # Kategooria loogika:
+            # 1. Kasutaja valitud kategooria
+            # 2. Ajutine seos sessioonis
+            # 3. Püsiv seos andmebaasis
+            kategooria_lõplik = kategooria_välja
+            
+            if kaupmees and not kategooria_lõplik:
+                if kaupmees in st.session_state["temp_merchants"]:
+                    kategooria_lõplik = st.session_state["temp_merchants"][kaupmees]
+                elif kaupmees in db["merchants"]:
+                    kategooria_lõplik = db["merchants"][kaupmees]
+                else:
+                    kategooria_lõplik = "Määramata" 
 
-                # Kui kasutaja valis kaupmehe, aga kategooria jättis tühjaks,
-                # proovime automaatselt leida kategooria
-                kategooria_lõplik = kategooria_välja
-                if kaupmees and not kategooria_lõplik:
-                    # Otsime, kas sellel kaupmehel on andmebaasis kategooria
-                    if kaupmees in kaupmehed_map:
-                         kategooria_lõplik = kaupmehed_map[kaupmees]
-                    else:
-                         kategooria_lõplik = "Määramata" 
+            new_row = {
+                "Timestamp": timestamp,
+                "Kuupäev": kuupäev_välja.strftime("%Y-%m-%d"),
+                "Summa": summa_val,
+                "Tulu/kulu": "Kulu",
+                "Kategooria": kategooria_lõplik,
+                "Kaupmees": kaupmees,
+                "Kirjeldus": kirjeldus_välja,
+            }
 
-                new_row = {
-                    "Timestamp": timestamp,
-                    "Kuupäev": kuupäev_välja.strftime("%Y-%m-%d"),
-                    "Summa": summa_val,
-                    "Tulu/kulu": "Kulu",
-                    "Kategooria": kategooria_lõplik,
-                    "Kaupmees": kaupmees,
-                    "Kirjeldus": kirjeldus_välja,
-                }
+            st.session_state["sisestused_df"] = pd.concat(
+                [st.session_state["sisestused_df"], pd.DataFrame([new_row])],
+                ignore_index=True,
+            )
+            st.success("Kirje lisatud.")
+        except ValueError:
+            st.error("Vigane summa. Palun sisesta number (nt 13.02).")
 
-                st.session_state["sisestused_df"] = pd.concat(
-                    [st.session_state["sisestused_df"], pd.DataFrame([new_row])],
-                    ignore_index=True,
-                )
-                st.success("Kirje lisatud.")
-            except ValueError:
-                st.error("Vigane summa. Palun sisesta number (nt 13.02).")
-
-    # 3. Näita hetkeandmeid + CSV
+    # 3. TABEL
     if not st.session_state["sisestused_df"].empty:
         st.markdown("---")
         st.markdown("### 3. Praegune CSV sisu")
         st.dataframe(st.session_state["sisestused_df"])
 
-        st.markdown("### 4. Laadi CSV alla (loo / uuenda fail)")
         csv_bytes = st.session_state["sisestused_df"].to_csv(index=False).encode("utf-8")
-
         st.download_button(
             label="Laadi alla CSV-fail",
             data=csv_bytes,
