@@ -69,52 +69,6 @@ def sisesta():
     kateg_list = [""] + koik_kategooriad
     kaupmehed_list = [""] + koik_kaupmehed
 
-    # --- SOOVIAVALDUSED (Expanderid) ---
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        with st.expander("➕ Kaupmees puudub?"):
-            st.caption("Lisa kaupmees ajutiselt ja saada arendajale palve see andmebaasi lisada.")
-            uus_kaup = st.text_input("Uus kaupmees", key="req_kaup")
-            uus_kaup_kat = st.selectbox("Seosta kategooriaga", kateg_list, key="req_kaup_kat")
-            
-            if st.button("Kasuta ja teavita arendajat", key="btn_req_kaup"):
-                if uus_kaup and uus_kaup_kat:
-                    # 1. Lisa ajutiselt sessiooni
-                    st.session_state["temp_merchants"][uus_kaup] = uus_kaup_kat
-                    # 2. Saada info arendajale
-                    success, msg = saada_soov_githubi("Kaupmees", uus_kaup, uus_kaup_kat)
-                    if success:
-                        st.success(f"Kaupmees '{uus_kaup}' lisatud valikusse! ({msg})")
-                        st.rerun()
-                    else:
-                        st.warning(f"Kaupmees lisatud valikusse, aga teavitamine ebaõnnestus: {msg}")
-                        st.rerun()
-                else:
-                    st.warning("Täida väljad!")
-
-    with col2:
-        with st.expander("➕ Kategooria puudub?"):
-            st.caption("Lisa kategooria ajutiselt ja saada arendajale palve see andmebaasi lisada.")
-            uus_kat = st.text_input("Uus kategooria", key="req_kat")
-            
-            if st.button("Kasuta ja teavita arendajat", key="btn_req_kat"):
-                if uus_kat and uus_kat not in koik_kategooriad:
-                    # 1. Lisa ajutiselt sessiooni
-                    st.session_state["temp_categories"].append(uus_kat)
-                    # 2. Saada info arendajale
-                    success, msg = saada_soov_githubi("Kategooria", uus_kat)
-                    if success:
-                        st.success(f"Kategooria '{uus_kat}' lisatud valikusse! ({msg})")
-                        st.rerun()
-                    else:
-                        st.warning(f"Kategooria lisatud valikusse, aga teavitamine ebaõnnestus: {msg}")
-                        st.rerun()
-                elif uus_kat in koik_kategooriad:
-                    st.warning("See kategooria on juba olemas.")
-                else:
-                    st.warning("Sisesta nimi.")
-
     # --- VORM ---
     
     with st.form("lisa_väljaminek_form"):
