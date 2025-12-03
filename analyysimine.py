@@ -43,13 +43,13 @@ def analyysi():
             format="YYYY-MM-DD",
         )
 
-    # Filter type
+    # Filtreeri tüübi järgi
     if tyyp_filter == "Ainult kulud":
         df = df[df["Tulu/kulu"] == "Kulu"]
     elif tyyp_filter == "Ainult sissetulekud":
         df = df[df["Tulu/kulu"] == "Tulu"]
 
-    # Filter by date range
+    # Filtreeri kuupäeva vahemiku järgi
     if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
         start, end = date_range
         df = df[(df["Kuupäev"].dt.date >= start) & (df["Kuupäev"].dt.date <= end)]
@@ -81,11 +81,11 @@ def analyysi():
 
     colors = [get_category_color(cat) for cat in by_cat.index]
 
-    # Main chart
+    # Põhijoonis
     fig, ax = plt.subplots(figsize=(10, 6))
     bars = ax.bar(by_cat.index.astype(str), by_cat.values, color=colors)
 
-    # Bar labels
+    # Tulpade päis
     for bar in bars:
         h = bar.get_height()
         ax.annotate(f"{h:.0f}", (bar.get_x() + bar.get_width()/2, h),
@@ -125,7 +125,7 @@ def analyysi():
         bars2 = ax2.bar(labels, grp.values,
                         color=get_category_color(valitav_kategooria))
 
-        # Numeric labels
+        # Nummerdatud tulpade päised
         for bar in bars2:
             h = bar.get_height()
             ax2.annotate(f"{h:.0f}", (bar.get_x() + bar.get_width()/2, h),
@@ -135,42 +135,3 @@ def analyysi():
         ax2.set_title(f"{valitav_kategooria} – {ajavahemik} lõikes")
         plt.setp(ax2.get_xticklabels(), rotation=45, ha="right")
         st.pyplot(fig2)
-
-    # -----------------------------
-    # 4. VÕRDLUSGRAAFIK (UUS)
-    # -----------------------------
-    st.markdown("### 4. Kategooriate võrdlusgraafik")
-
-    st.write("Vali kuni 2 kategooriat, mida soovid omavahel võrrelda:")
-
-    # Checkbox-based selection UI
-    selected = []
-    for cat in by_cat.index:
-        if st.checkbox(cat):
-            selected.append(cat)
-
-    if len(selected) == 0:
-        st.info("Vali vähemalt 1 kategooria.")
-    elif len(selected) > 2:
-        st.warning("Saad valida maksimaalselt 2 kategooriat.")
-    else:
-        # Prepare data
-        comp = df[df["Kategooria"].isin(selected)]
-        comp_group = comp.groupby("Kategooria")["Summa"].sum()
-
-        # Colors based on income/expense
-        comp_colors = [get_category_color(cat) for cat in comp_group.index]
-
-        figc, axc = plt.subplots(figsize=(8, 5))
-        barsc = axc.bar(comp_group.index.astype(str), comp_group.values, color=comp_colors)
-
-        # Numeric bar labels
-        for bar in barsc:
-            h = bar.get_height()
-            axc.annotate(f"{h:.0f}", (bar.get_x() + bar.get_width()/2, h),
-                         xytext=(0, 4), textcoords="offset points",
-                         ha="center", fontsize=10)
-
-        axc.set_title("Kategooriate võrdlus")
-        axc.set_ylabel("Summa")
-        st.pyplot(figc)
